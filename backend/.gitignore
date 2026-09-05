@@ -1,0 +1,16 @@
+# Dependencies
+node_modules/
+
+# Environment / secrets (keep only the example)
+.env
+.env.*
+!.env.example
+
+# Uploaded user content
+uploads/
+
+# Logs / runtime output
+*.log
+serv-err.txt
+serv-log.txt
+server_console.log

@@ -65,9 +65,6 @@ export default function HomePage() {
     <div className="container">
       {/* Hero */}
       <section className="hero">
-        <span className="hero-badge">
-          <SparklesIcon /> Your education library
-        </span>
         <h1>Learn. Discover. Grow.</h1>
         <p className="hero-sub">
           Notes, books, slides, quizzes and past papers — everything you need to study,
@@ -176,8 +173,4 @@ export default function HomePage() {
       )}
     </div>
   );
-}
-
-function SparklesIcon() {
-  return <span style={{ display: 'inline-flex' }}>✦</span>;
 }

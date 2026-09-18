@@ -37,24 +37,13 @@ export default function ResourceCard({ resource: r, onLike, onStatChange }: Prop
         detail: { resource: r },
       })
     );
-    handleStat();
-  };
-
-  const handleStat = async () => {
-    try {
-      await api.post(`/resources/${r.id}/view`);
-      onStatChange?.(r.id, 'view');
-    } catch {
-      /* non-fatal */
-    }
   };
 
   const handleDownload = async () => {
     const fileUrl = r.file_url || '';
-    const base = (process.env.NEXT_PUBLIC_API_URL || '').replace(/\/+$/, '');
-    const target = /^https?:\/\//i.test(fileUrl) ? fileUrl : `${base}${fileUrl}`;
+    if (!fileUrl) return;
     try {
-      const resp = await fetch(target, { method: 'GET' });
+      const resp = await fetch(fileUrl);
       if (!resp.ok) throw new Error('fetch failed');
       const blob = await resp.blob();
       const url = URL.createObjectURL(blob);
@@ -107,7 +96,9 @@ export default function ResourceCard({ resource: r, onLike, onStatChange }: Prop
       ) : null}
       <span className="chip">👁 {r.view_count}</span>
       <span className="chip">⬇ {r.download_count}</span>
-      <span className="chip">💬 {r.comment_count}</span>
+      <Link href={`/resource/${r.id}`} className="chip" style={{ cursor: 'pointer' }}>
+        💬 {r.comment_count}
+      </Link>
     </div>
   );
 
@@ -121,7 +112,9 @@ export default function ResourceCard({ resource: r, onLike, onStatChange }: Prop
           </Link>
           <div className="res-meta">
             <span className="chip badge-quiz">🎯 {r.question_count} questions</span>
-            <span className="chip">💬 {r.comment_count}</span>
+            <Link href={`/resource/${r.id}`} className="chip" style={{ cursor: 'pointer' }}>
+              💬 {r.comment_count}
+            </Link>
           </div>
           {r.description ? <p className="res-desc">{r.description}</p> : null}
         </div>

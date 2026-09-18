@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { formatSize } from '@/lib/format';
 import { api, ApiError, getToken } from '@/lib/api';
 import { useToast } from '@/lib/toast';
+import { useAuth } from '@/lib/auth';
 import type { Resource } from '@/types';
 
 interface Props {
@@ -14,6 +15,8 @@ interface Props {
 
 export default function ResourceCard({ resource: r, onLike, onStatChange }: Props) {
   const { showToast } = useToast();
+  const { user } = useAuth();
+  const isAdmin = user?.role === 'admin';
 
   const isQuiz = r.category?.key === 'quizzes';
 
@@ -94,8 +97,8 @@ export default function ResourceCard({ resource: r, onLike, onStatChange }: Prop
       {r.type === 'file' && r.file_size ? (
         <span className="chip">{formatSize(r.file_size)}</span>
       ) : null}
-      <span className="chip">👁 {r.view_count}</span>
-      <span className="chip">⬇ {r.download_count}</span>
+      {isAdmin ? <span className="chip">👁 {r.view_count}</span> : null}
+      {isAdmin ? <span className="chip">⬇ {r.download_count}</span> : null}
       <Link href={`/resource/${r.id}`} className="chip" style={{ cursor: 'pointer' }}>
         💬 {r.comment_count}
       </Link>

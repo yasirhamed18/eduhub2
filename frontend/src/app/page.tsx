@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
-import { Search, ArrowRight, PlayCircle, FileText, Upload, Heart } from 'lucide-react';
+import { Search, ArrowRight } from 'lucide-react';
 import { useCategories, useResources } from '@/lib/hooks';
 import { api } from '@/lib/api';
 import { Loader, EmptyState } from '@/components/ui/Feedback';
@@ -15,23 +15,6 @@ export default function HomePage() {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<Resource[] | null>(null);
   const [searching, setSearching] = useState(false);
-  const [stats, setStats] = useState({
-    resources: 0,
-    views: 0,
-    downloads: 0,
-    likes: 0,
-  });
-
-  useEffect(() => {
-    if (resources.length) {
-      setStats({
-        resources: resources.length,
-        views: resources.reduce((s, r) => s + r.view_count, 0),
-        downloads: resources.reduce((s, r) => s + r.download_count, 0),
-        likes: resources.reduce((s, r) => s + r.like_count, 0),
-      });
-    }
-  }, [resources]);
 
   useEffect(() => {
     if (!query.trim()) {
@@ -128,25 +111,6 @@ export default function HomePage() {
             )}
           </div>
         ) : null}
-
-        <div className="hero-stats">
-          <div className="stat">
-            <strong className="mono">{stats.resources}</strong>
-            <span>Resources</span>
-          </div>
-          <div className="stat">
-            <strong className="mono">{stats.views}</strong>
-            <span>Views</span>
-          </div>
-          <div className="stat">
-            <strong className="mono">{stats.downloads}</strong>
-            <span>Downloads</span>
-          </div>
-          <div className="stat">
-            <strong className="mono">{stats.likes}</strong>
-            <span>Likes</span>
-          </div>
-        </div>
       </section>
 
       {/* Categories */}

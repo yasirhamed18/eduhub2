@@ -1,12 +1,12 @@
 /**
  * EduHub database setup + seed script.
  *
- * Responsibilities:
- *   1. Drop & recreate the database (clean reset).
- *   2. Apply database/schema.sql (creates database + all tables).
- *   3. Seed categories from database/seed.sql.
- *   4. Create the admin user from the ADMIN_EMAIL / ADMIN_PASSWORD
- *      environment variables, hashing the password with bcrypt at runtime.
+ * Works with hosts (like Clever Cloud, Aiven, PlanetScale) where the
+ * database user does NOT have permission to CREATE/DROP databases and
+ * can only work inside the one database they were given. It connects
+ * directly to DB_NAME, strips any DROP/CREATE DATABASE or USE
+ * statements out of the SQL files, and just creates tables inside
+ * whatever database is already there.
  *
  * Run:  npm run db:setup
  */
@@ -28,9 +28,19 @@ const connectionConfig = {
   port: Number(process.env.DB_PORT) || 3306,
   user: process.env.DB_USER || 'root',
   password: process.env.DB_PASSWORD || '',
-  multipleStatements: true, // allow multi-statement SQL files
+  database: DB_NAME, // connect straight into the existing database
+  multipleStatements: true,
   ssl: needsSSL ? { rejectUnauthorized: false } : undefined,
 };
+
+// Remove statements that need database-creation privileges the
+// managed-hosting user doesn't have, and any hardcoded "USE eduhub;".
+function stripDatabaseStatements(sql) {
+  return sql
+    .replace(/DROP\s+DATABASE[^;]*;/gi, '')
+    .replace(/CREATE\s+DATABASE[^;]*;/gi, '')
+    .replace(/USE\s+[`'"]?\w+[`'"]?\s*;/gi, '');
+}
 
 async function run() {
   const root = path.join(__dirname, '..', '..');
@@ -40,23 +50,19 @@ async function run() {
   let conn;
   try {
     conn = await mysql.createConnection(connectionConfig);
-    console.log('Connected to MySQL.');
+    console.log(`Connected to MySQL database "${DB_NAME}".`);
 
-    // 1. Drop & recreate the database cleanly
-    await conn.query(`DROP DATABASE IF EXISTS \`${DB_NAME}\``);
-    console.log(`[1/4] Dropped old "${DB_NAME}" database.`);
-
-    // 2. Apply full schema (CREATE DATABASE + tables)
-    const schemaSql = fs.readFileSync(schemaPath, 'utf8');
+    // 1. Create tables inside the existing database (no DROP/CREATE DATABASE)
+    const schemaSql = stripDatabaseStatements(fs.readFileSync(schemaPath, 'utf8'));
     await conn.query(schemaSql);
-    console.log('[2/4] Database + tables created.');
+    console.log('[1/3] Tables created (or already existed).');
 
-    // 3. Seed categories
-    const seedSql = fs.readFileSync(seedPath, 'utf8');
+    // 2. Seed categories
+    const seedSql = stripDatabaseStatements(fs.readFileSync(seedPath, 'utf8'));
     await conn.query(seedSql);
-    console.log('[3/4] Categories seeded.');
+    console.log('[2/3] Categories seeded.');
 
-    // 4. Create / reset admin user from env vars (never hardcoded)
+    // 3. Create / reset admin user from env vars (never hardcoded)
     const adminEmail = (process.env.ADMIN_EMAIL || 'admin@eduhub.local').toLowerCase().trim();
     const adminPassword = process.env.ADMIN_PASSWORD;
     const adminName = process.env.ADMIN_NAME || 'Admin';
@@ -64,19 +70,13 @@ async function run() {
     if (!adminPassword || adminPassword.length < 6) {
       throw new Error(
         'ADMIN_PASSWORD env var is missing or too short. ' +
-        'Set ADMIN_PASSWORD in backend/.env before running setup.'
-      );
-    }
-    if (adminPassword.includes('change-this')) {
-      console.warn(
-        'WARNING: ADMIN_PASSWORD still uses a placeholder. ' +
-        'Change it in backend/.env before deploying.'
+        'Set ADMIN_PASSWORD in your environment before running setup.'
       );
     }
 
     const hash = await bcrypt.hash(adminPassword, 10);
     await conn.query(
-      `INSERT INTO \`${DB_NAME}\`.\`users\` (name, email, password_hash, role)
+      `INSERT INTO users (name, email, password_hash, role)
        VALUES (?, ?, ?, 'admin')
        ON DUPLICATE KEY UPDATE
          name = VALUES(name),
@@ -84,7 +84,7 @@ async function run() {
          role = 'admin'`,
       [adminName, adminEmail, hash]
     );
-    console.log(`[4/4] Admin user ready (${adminEmail}).`);
+    console.log(`[3/3] Admin user ready (${adminEmail}).`);
 
     console.log('\nSetup complete. ✅');
   } catch (err) {

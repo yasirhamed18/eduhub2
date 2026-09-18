@@ -1,8 +1,7 @@
 export default function Footer() {
   return (
     <footer className="footer">
-      Made with <span style={{ color: 'var(--danger)' }}>♥</span> for students everywhere —
-      EduHub
+      All Rights Reserved © 2026 | By Yasir Hamed
     </footer>
   );
 }

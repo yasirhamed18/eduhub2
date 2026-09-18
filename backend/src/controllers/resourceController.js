@@ -1,15 +1,11 @@
 const pool = require('../db');
-const path = require('path');
 const { validateQuizQuestions } = require('../utils/validation');
+const { uploadFile, deleteFileByPublicUrl } = require('../lib/supabaseStorage');
 require('dotenv').config();
 
-function mapResource(row, req) {
-  const filePath = row.file_path;
-  let fileUrl = null;
-  if (row.type === 'file' && filePath) {
-    const base = process.env.UPLOAD_BASE_URL || `${req.protocol}://${req.get('host')}/uploads`;
-    fileUrl = `${base}/${encodeURIComponent(path.basename(filePath))}`;
-  }
+function mapResource(row) {
+  // file_path now stores the full permanent Supabase Storage URL directly.
+  const fileUrl = row.type === 'file' && row.file_path ? row.file_path : null;
   return {
     id: row.id,
     category_id: row.category_id,
@@ -74,7 +70,7 @@ async function listResources(req, res) {
     `${SELECT_GROUP} ${whereSql} ORDER BY r.created_at DESC`,
     params
   );
-  return res.json({ resources: rows.map((r) => mapResource(r, req)) });
+  return res.json({ resources: rows.map((r) => mapResource(r)) });
 }
 
 // GET /api/resources/:id
@@ -91,7 +87,7 @@ async function getResource(req, res) {
     likedByMe = likes.length > 0;
   }
 
-  const resource = mapResource(rows[0], req);
+  const resource = mapResource(rows[0]);
   return res.json({ resource: { ...resource, liked_by_me: likedByMe } });
 }
 
@@ -125,7 +121,7 @@ async function createLinkResource(req, res) {
   );
 
   const [inserted] = await pool.query(`${SELECT_GROUP} WHERE r.id = ?`, [result.insertId]);
-  res.status(201).json({ resource: mapResource(inserted[0], req) });
+  res.status(201).json({ resource: mapResource(inserted[0]) });
 }
 
 // POST /api/resources/upload  (file item) -- admin
@@ -151,15 +147,23 @@ async function createFileResource(req, res) {
   }
   if (title.length > 255) title = title.slice(0, 255);
 
+  let uploaded;
+  try {
+    uploaded = await uploadFile(req.file.buffer, req.file.originalname, req.file.mimetype);
+  } catch (e) {
+    console.error('Supabase upload failed:', e.message);
+    return res.status(500).json({ error: 'Could not store the file. Please try again.' });
+  }
+
   const [result] = await pool.query(
     `INSERT INTO resources
        (category_id, title, description, type, file_name, file_size, file_path, uploaded_by)
      VALUES (?, ?, ?, 'file', ?, ?, ?, ?)`,
-    [category_id, title, description || null, req.file.originalname, req.file.size, req.file.filename, req.user.id]
+    [category_id, title, description || null, req.file.originalname, req.file.size, uploaded.publicUrl, req.user.id]
   );
 
   const [inserted] = await pool.query(`${SELECT_GROUP} WHERE r.id = ?`, [result.insertId]);
-  const resource = mapResource(inserted[0], req);
+  const resource = mapResource(inserted[0]);
   res.status(201).json({ resource });
 }
 
@@ -194,7 +198,7 @@ async function createQuizResource(req, res) {
   );
 
   const [inserted] = await pool.query(`${SELECT_GROUP} WHERE r.id = ?`, [result.insertId]);
-  res.status(201).json({ resource: mapResource(inserted[0], req) });
+  res.status(201).json({ resource: mapResource(inserted[0]) });
 }
 
 // PUT /api/resources/:id -- admin
@@ -234,7 +238,7 @@ async function updateResource(req, res) {
   await pool.query(`UPDATE resources SET ${updates.join(', ')} WHERE id = ?`, params);
 
   const [updated] = await pool.query(`${SELECT_GROUP} WHERE r.id = ?`, [id]);
-  res.json({ resource: mapResource(updated[0], req) });
+  res.json({ resource: mapResource(updated[0]) });
 }
 
 // DELETE /api/resources/:id -- admin
@@ -248,15 +252,8 @@ async function deleteResource(req, res) {
 
   await pool.query('DELETE FROM resources WHERE id = ?', [id]);
 
-  // Remove stored file from disk (best effort)
   if (existing[0].file_path) {
-    try {
-      const fs = require('fs');
-      const fullPath = require('path').join(__dirname, '..', '..', process.env.UPLOAD_DIR || 'uploads', existing[0].file_path);
-      if (fs.existsSync(fullPath)) fs.unlinkSync(fullPath);
-    } catch (e) {
-      // ignore disk errors
-    }
+    await deleteFileByPublicUrl(existing[0].file_path);
   }
 
   res.json({ success: true });
@@ -290,7 +287,7 @@ async function incrementDownload(req, res) {
   res.json({ download_count: Number(row[0].download_count) });
 }
 
-// GET /api/resources/:id/download  -- streams the file to the user + increments count
+// GET /api/resources/:id/download -- redirects to the permanent file URL + increments count
 async function downloadResource(req, res) {
   const id = Number(req.params.id);
   const [rows] = await pool.query('SELECT * FROM resources WHERE id = ?', [id]);
@@ -301,22 +298,11 @@ async function downloadResource(req, res) {
   const r = rows[0];
   await pool.query('UPDATE resources SET download_count = download_count + 1 WHERE id = ?', [id]);
 
-  if (r.type === 'link') {
-    return res.json({ redirect: r.url });
-  }
-
-  if (!r.file_path) {
+  const target = r.type === 'link' ? r.url : r.file_path;
+  if (!target) {
     return res.status(404).json({ error: 'File missing for this resource.' });
   }
-
-  const fs = require('fs');
-  const path = require('path');
-  const fullPath = path.join(__dirname, '..', '..', process.env.UPLOAD_DIR || 'uploads', r.file_path);
-  if (!fs.existsSync(fullPath)) {
-    return res.status(404).json({ error: 'File missing on disk.' });
-  }
-
-  res.download(fullPath, r.file_name || 'download');
+  return res.json({ redirect: target });
 }
 
 // POST /api/resources/:id/like -- toggle like (auth required)

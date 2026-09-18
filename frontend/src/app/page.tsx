@@ -59,6 +59,7 @@ export default function HomePage() {
   };
 
   const latest = resources.slice(0, 6);
+  const isSearching = query.trim().length > 0;
 
   return (
     <div className="container">
@@ -84,7 +85,7 @@ export default function HomePage() {
           />
         </div>
 
-        {query.trim() ? (
+        {isSearching ? (
           <div className="mt-3">
             {searching ? (
               <EmptyState icon="🔍" title="Searching…" />
@@ -113,62 +114,66 @@ export default function HomePage() {
         ) : null}
       </section>
 
-      {/* Categories */}
-      <section style={{ marginTop: 24 }}>
-        <div className="section-head">
-          <h2>Browse categories</h2>
-        </div>
-        <div className="grid">
-          {categories.map((c) => (
-            <Link key={c.key} href={`/category/${c.key}`} className="cat-card">
-              <span
-                className="cat-icon"
-                style={{
-                  background: `${c.color}18`,
-                  color: c.color,
-                }}
-              >
-                {c.icon}
-              </span>
-              <span className="cat-text">
-                <span className="cat-label">{c.label}</span>
-                <span className="cat-count">
-                  {c.resource_count ?? 0} {c.resource_count === 1 ? 'item' : 'items'}
-                </span>
-              </span>
-              <span className="cat-arrow">
-                <ArrowRight size={16} />
-              </span>
-            </Link>
-          ))}
-        </div>
-      </section>
+      {!isSearching && (
+        <>
+          {/* Categories */}
+          <section style={{ marginTop: 24 }}>
+            <div className="section-head">
+              <h2>Browse categories</h2>
+            </div>
+            <div className="grid">
+              {categories.map((c) => (
+                <Link key={c.key} href={`/category/${c.key}`} className="cat-card">
+                  <span
+                    className="cat-icon"
+                    style={{
+                      background: `${c.color}18`,
+                      color: c.color,
+                    }}
+                  >
+                    {c.icon}
+                  </span>
+                  <span className="cat-text">
+                    <span className="cat-label">{c.label}</span>
+                    <span className="cat-count">
+                      {c.resource_count ?? 0} {c.resource_count === 1 ? 'item' : 'items'}
+                    </span>
+                  </span>
+                  <span className="cat-arrow">
+                    <ArrowRight size={16} />
+                  </span>
+                </Link>
+              ))}
+            </div>
+          </section>
 
-      {/* Latest resources */}
-      <section style={{ marginTop: 48 }}>
-        <div className="section-head">
-          <h2>Latest resources</h2>
-          <Link href="/categories" className="btn btn-ghost btn-sm">
-            View all
-          </Link>
-        </div>
-        {loading ? (
-          <Loader label="Loading resources…" />
-        ) : latest.length ? (
-          <div className="res-list">
-            {latest.map((r) => (
-              <ResourceCard
-                key={r.id}
-                resource={r}
-                onLike={handleLikeUpdate}
-                onStatChange={handleStat}
-              />
-            ))}
-          </div>
-        ) : (
-          <EmptyState icon="📚" title="No resources yet" subtitle="Check back soon for new content." />
-        )}
-      </section>
+          {/* Latest resources */}
+          <section style={{ marginTop: 48 }}>
+            <div className="section-head">
+              <h2>Latest resources</h2>
+              <Link href="/categories" className="btn btn-ghost btn-sm">
+                View all
+              </Link>
+            </div>
+            {loading ? (
+              <Loader label="Loading resources…" />
+            ) : latest.length ? (
+              <div className="res-list">
+                {latest.map((r) => (
+                  <ResourceCard
+                    key={r.id}
+                    resource={r}
+                    onLike={handleLikeUpdate}
+                    onStatChange={handleStat}
+                  />
+                ))}
+              </div>
+            ) : (
+              <EmptyState icon="📚" title="No resources yet" subtitle="Check back soon for new content." />
+            )}
+          </section>
+        </>
+      )}
     </div>
   );
 }
